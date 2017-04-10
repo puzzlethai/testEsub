@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <script type = "text/javascript" src = "papaparse.js"></script>
+    <!-- <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js"></script> -->
+    <script type="text/javascript" src="jquery-1.8.3.min.js"></script>
+    <title></title>
+    <style type="text/css">
+        body
+        {
+            font-family: Arial;
+            font-size: 10pt;
+        }
+        table
+        {
+            border: 1px solid #ccc;
+        }
+        table th
+        {
+            background-color: #F7F7F7;
+            color: #333;
+            font-weight: bold;
+
+        }
+        table th, table td
+        {
+            padding: 5px;
+            border-color: #ccc;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+<script type="text/javascript">
+    const FRACT_DIGIT = 6;
+    const NO_DIGIT = 0;
+    const Million = 1000*1000;
+    const V2Data = 5;  // Coversion Rate 1 min|1 SMS = 5MB
+    const PER_SUB_R1 = 3; // div with 3GB
+    const PER_SUB_R2 = 5; // div with 5GB
+    const PER_SUB_R3 = 7; // div with 7GB
+
+    const ESUB_TOT_R1 = 5.625*Million; // TOT Esub Rang 1
+    const ESUB_TOT_R2 = 9.375*Million; // TOT Esub Rang 2
+    const ESUB_TOT_R3 = 13.125*Million; // TOT Esub Rang 3
+    const ESUB_AWN_R1 = 30*Million; // TOT Esub Rang 1
+    const ESUB_AWN_R2 = 50*Million; // TOT Esub Rang 2
+    const ESUB_AWN_R3 = 70*Million; // TOT Esub Rang 3
+    const ROAMING_RATE = 120;
+    const PENSION_RATE = 32.5;
+    const TYPE2_RATE  =  87.5;
+    const TYPE1_RATE  =  65;
+    const GUARENTEE = 10*Million;
+    var dataJson;
+
+    function voice2GB(voice) {
+        return (voice*V2Data)/(60*1024);
+    }
+    function sms2GB(sms) {
+        return (sms*V2Data)/1024;
+    }
+    function data2GB(databyte) {
+        return databyte/(1024*1024*1024);
+    }
+    function totEsub(totalGB){
+        if (totalGB <= ESUB_TOT_R1)
+            return totalGB/PER_SUB_R1;
+        else if ((totalGB>ESUB_TOT_R1)&&(totalGB<=ESUB_TOT_R2))
+            return totalGB/PER_SUB_R2;
+        else if ((totalGB>ESUB_TOT_R2)&&(totalGB<=ESUB_TOT_R3))
+            return totalGB/PER_SUB_R3;
+        else
+            return totalGB/(PER_SUB_R3+(PER_SUB_R2-PER_SUB_R1));
+    }
+    function awnEsub(totalGB){
+        if (totalGB <= ESUB_AWN_R1)
+            return totalGB/PER_SUB_R1;
+        else if ((totalGB>ESUB_AWN_R1)&&(totalGB<=ESUB_AWN_R2))
+            return totalGB/PER_SUB_R2;
+        else if ((totalGB>ESUB_AWN_R2)&&(totalGB<=ESUB_AWN_R3))
+            return totalGB/PER_SUB_R3;
+        else
+            return totalGB/(PER_SUB_R3+(PER_SUB_R2-PER_SUB_R1));
+    }
+    function parseFloatIgnoreCommas(number) {
+        var numberNoCommas = number.replace(/,/g, ''); 
+        return parseFloat(numberNoCommas);
+    }
+    function calRoamCost(cost){
+
+        return cost*ROAMING_RATE;
+    }
+    function handleFileSelect(evt) {
+        var file = evt.target.files[0];
+
+        Papa.parse(file, {
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                dataJson = results;
+                console.log("Finished:", dataJson);
+                var {data:[{Voice:totVoice,SMS:totSMS,Data:totData},{Voice:awnVoice,SMS:awnSMS,Data:awnData}]} = dataJson;
+                console.log("totVoice:",totVoice);
+                console.log("totSMS:",totSMS);
+                console.log("totData:",totData);
+                console.log("awnVoice:",awnVoice);
+                console.log("awnSMS:",awnSMS);
+                console.log("awnData:",awnData);
+
+                var totVoiceGB = voice2GB(parseFloatIgnoreCommas(totVoice));
+                var totSmsGB = sms2GB(parseFloatIgnoreCommas(totSMS));
+                var totDataGB = data2GB(parseFloatIgnoreCommas(totData));
+                var totAllGB = totVoiceGB+totSmsGB+totDataGB;
+                var eSUBtot = totEsub(totAllGB);
+                var awnVoiceGB = voice2GB(parseFloatIgnoreCommas(awnVoice));
+                var awnSmsGB = sms2GB(parseFloatIgnoreCommas(awnSMS));
+                var awnDataGB = data2GB(parseFloatIgnoreCommas(awnData));
+                var awnAllGB = awnVoiceGB+awnSmsGB+awnDataGB;
+                var eSUBawn = awnEsub(awnAllGB);
+                //console.log("esubawn:",eSUBawn.toLocaleString('en-US', { maximumFractionDigits: 6 }));
+
+                var table = $("<table />");
+                var row = $("<tr />");
+                var cell = $("<td />");
+                cell.html("TRAFFIC"); row.append(cell);
+                cell = $("<td />"); cell.html("VOICE"); row.append(cell);
+                cell = $("<td />"); cell.html("SMS"); row.append(cell);
+                cell = $("<td />"); cell.html("DATA"); row.append(cell);
+                cell = $("<td />"); cell.html("TOTAL"); row.append(cell);
+                cell = $("<td />"); cell.html("Esub"); row.append(cell);
+
+                table.append(row);
+                row = $("<tr />");
+                cell = $("<td />"); cell.html("TOT_traffic"); row.append(cell);
+                cell = $("<td />"); cell.html(totVoiceGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(totSmsGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(totDataGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(totAllGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(eSUBtot.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+
+                table.append(row);
+                row = $("<tr />");
+                cell = $("<td />"); cell.html("AWN_traffic"); row.append(cell);
+                cell = $("<td />"); cell.html(awnVoiceGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(awnSmsGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(awnDataGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(awnAllGB.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+                cell = $("<td />"); cell.html(eSUBawn.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row.append(cell);
+
+
+                table.append(row);
+                $("#dvCSV").html('');
+
+                $("#dvCSV").append(table);
+                $("#dvCSV").append('<hr />');
+
+                // var roam_cost = calRoamCost(eSUBawn);
+                var roam_cost = eSUBawn*ROAMING_RATE;
+                var pension = (eSUBawn <= GUARENTEE) ? (GUARENTEE-eSUBawn)*PENSION_RATE : 0.0;
+                <!-- var table2 = $("<table />"); -->
+                <!-- var row2 = $("<tr />");  -->
+                <!-- var cell2 = $("<td />"); -->
+                <!-- cell2.html("ค่า Roaming"); row2.append(cell2); -->
+                <!-- cell2 = $("<td />"); cell2.html(eSUBawn.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })+"x"+ROAMING_RATE); row2.append(cell2); -->
+                <!-- cell2 = $("<td />"); cell2.html(roam_cost.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row2.append(cell2); -->
+                <!-- table2.append(row2); -->
+                <!-- cell2.html("ค่าชดเชย"); row2.append(cell2); -->
+                <!-- cell2 = $("<td />"); cell2.html((GUARENTEE-eSUBawn).toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })+"x"+PENSION_RATE); row2.append(cell2); -->
+                <!-- cell2 = $("<td />"); cell2.html(pension.toLocaleString('en-US', { maximumFractionDigits: FRACT_DIGIT })); row2.append(cell2); -->
+                <!-- table2.append(row2); -->
+                <!-- $("#dvMoney").append('<hr />');    -->
+
+
+
+                <!-- $("#dvMoney").append(table2); -->
+                <!-- $("#dvMoney").append('<hr />'); -->
+
+
+                $("#dvCSV").append(" A ) ค่า Roaming  =  "+eSUBawn.toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT })+
+                    "*"+ROAMING_RATE+"  =  "+roam_cost.toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT }));
+
+                $("#dvCSV").append('<p> </p>');
+                $("#dvCSV").append(" B ) ค่า ชดเชย            =       (10ล้าน-"+eSUBawn.toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT })+
+                    ")*"+PENSION_RATE+"  =  "+pension.toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT }));
+                $("#dvCSV").append('<p> </p>');
+                $("#dvCSV").append(" C ) ค่าเช่าโครงข่าย Type 1(awn)  =  "+eSUBawn.toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT })+
+                    "*"+TYPE1_RATE+"  =  "+(eSUBawn*TYPE2_RATE).toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT }));
+                $("#dvCSV").append('<p> </p>');
+                $("#dvCSV").append("A + B - C =  325 ล้านบาท");
+                $("#dvCSV").append('<p> </p>');
+                $("#dvCSV").append("ค่าเช่าโครงข่าย Type 2(TOT) =  "+eSUBtot.toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT })+
+                    "*"+TYPE1_RATE+"  =  "+(eSUBtot*TYPE1_RATE).toLocaleString('en-US', { maximumFractionDigits: NO_DIGIT }));
+
+//console.log("RoamCost:",roam_cost);
+            }
+        });
+    }
+
+    $(document).ready(function(){
+        $("#csv-file").change(handleFileSelect);
+    });
+</script>
+<input type="file" id="csv-file" name="files"/>
+<hr />
+<div id="dvCSV">
+
+
+</body>
+</html>
+
